@@ -4,11 +4,11 @@
 
 sites ()
 {
-	echo "en fr"
+        echo "en fr"
 }
 adminsites ()
 {
-	echo "admin admin2"
+        echo "admin admin2"
 }
 dbinfo ()
 {
@@ -201,6 +201,8 @@ upto401 ()
 echo "Starting 4.0.1 upgrade"
 dbinfo|while read db user password
 do
+	echo "Adding ezurlalias_migration schema"
+	mysql -u $user --password=$password $db < extension/ezurlaliasmigration/sql/mysql/schema.sql
 	for sql in update/database/mysql/4.0/*.sql
 	do
 		echo "running $sql"
@@ -217,20 +219,23 @@ do
 			exit
 		fi
 	done
-	echo "Removing 3.10 nicely updated urls"
 	echo "Done with DB conversions."
 done
 newtype
 echo "Starting scripts"
 for siteaccess in `adminsites`
 do
+	echo "Updating binary files"
+	/usr/bin/php5 update/common/scripts/4.0/updatebinaryfile.php -s $siteaccess
 	echo "Fixing object remote id"
 	/usr/bin/php5 update/common/scripts/4.0/fixobjectremoteid.php -s $siteaccess
 	echo "Updating binary files"
 	/usr/bin/php5 update/common/scripts/4.0/updatebinaryfile.php -s $siteaccess
-#php5 extension/ezurlaliasmigration/scripts/migrate.php --create-migration-table
-#php5 extension/ezurlaliasmigration/scripts/migrate.php --migrate
-#mysql -u $user --password=$password $db -e "UPDATE ezurlalias SET is_imported=0; TRUNCATE ezurlalias_ml;"
+	echo "Creating migration table"
+	#php5 extension/ezurlaliasmigration/scripts/migrate.php --create-migration-table
+	echo "migrating url aliases"
+	php5 extension/ezurlaliasmigration/scripts/migrate.php --migrate
+	#mysql -u $user --password=$password $db -e "UPDATE ezurlalias SET is_imported=0; TRUNCATE ezurlalias_ml;"
 	echo "Updating nice urls"
         /usr/bin/php5 bin/php/updateniceurls.php --import --fetch-limit=100 -s $siteaccess
         php extension/ezurlaliasmigration/scripts/migrate.php --restore
@@ -245,8 +250,8 @@ upto403 ()
 echo "Starting 4.0.3 upgrade"
 dbinfo|while read db user password
 do
-	#mysql -f -u $user --password=$password $db < update/database/mysql/4.0/dbupdate-4.0.1-to-4.0.2.sql
-	#mysql -f -u $user --password=$password $db < update/database/mysql/4.0/dbupdate-4.0.2-to-4.0.3.sql
+	mysql -f -u $user --password=$password $db < update/database/mysql/4.0/dbupdate-4.0.1-to-4.0.2.sql
+	mysql -f -u $user --password=$password $db < update/database/mysql/4.0/dbupdate-4.0.2-to-4.0.3.sql
         continue
 done
 for siteaccess in `adminsites`
@@ -262,12 +267,92 @@ newtype
 echo "Starting scripts"
 for siteaccess in `adminsites`
 do
-	#php5 update/common/scripts/4.0/initurlaliasmlid.php -s $siteaccess
+	php5 update/common/scripts/4.0/initurlaliasmlid.php -s $siteaccess
 	echo "Updating nice urls"
         /usr/bin/php5 bin/php/updateniceurls.php --import --fetch-limit=100 -s $siteaccess
         php extension/ezurlaliasmigration/scripts/migrate.php --restore -s $siteaccess
 done
 }
+upto410 ()
+{
+echo "Starting 4.1.0 upgrade"
+dbinfo|while read db user password
+do
+	for sql in update/database/mysql/4.1/*.sql
+	do
+		echo "running $sql"
+        	mysql -f -u $user --password=$password $db < $sql
+		if [ $? -ne 0 ]
+		then
+			echo $sql failed!!!
+			sqlfail=true
+			exit
+		fi
+		if [ -n "$sqlfail" ]
+		then
+        		echo "FIX THE DB ERROR FIRST"
+			exit
+		fi
+	done
+done
+echo "Starting scripts"
+for siteaccess in `adminsites`
+do
+	# addlockstategroup.php (used for creating locked states, part of the object states functionality)
+	# fixclassremoteid.php (fixing remote ids of classes)
+	# fixezurlobjectlinks.php (to fix older occurrences of link items not being present in the ezurl_object_table for all versions/translations)
+	# fixobjectremoteid.php (to fix non-unique usage of content object remote ID's)
+	# initurlaliasmlid.php (Initialize the ezurlalias_ml_incr table, part of the fixed issue #14077: eZURLAliasML database table lock and unlock code causes implicit commit of database transaction)
+	# updateimagesystem.php (optional: update all attributes with datatype ezimage to use the new image system introduced in eZ Publish 3.3 as older items may still exist)
+
+	echo "Doing addlockstategroup.php"
+	php5 update/common/scripts/4.1/addlockstategroup.php -s $siteaccess
+	echo "Doing fixclassremoteid.php"
+	php5 update/common/scripts/4.1/fixclassremoteid.php -s $siteaccess
+	echo "Doing fixezurlobjectlinks.php"
+	php5 update/common/scripts/4.1/fixezurlobjectlinks.php -s $siteaccess
+	echo "Doing fixobjectremoteid.php"
+	php5 update/common/scripts/4.1/fixobjectremoteid.php -s $siteaccess
+	echo "Doing initurlaliasmlid.php"
+	php5 update/common/scripts/4.1/initurlaliasmlid.php -s $siteaccess
+	#echo "Doing updateimagesystem.php"
+	#Undocumented!!
+	#correctxmlalign.php
+	#fixnoderemoteid.php
+done
+}
+upto420 ()
+{
+echo "Starting 4.2.0 upgrade"
+#If you are upgrading to the 4.2 series of eZ Publish for the first time, and the installation at hand has been running since prior to eZ Publish 3.3 then you need to run the updateimagesystem.php script before running any of the dbupdate scripts for version 4.2.
+#php5 update/common/scripts/4.1/updateimagesystem.php -s $siteaccess
+
+dbinfo|while read db user password
+do
+	for sql in update/database/mysql/4.2/*.sql
+	do
+		echo "running $sql"
+        	mysql -f -u $user --password=$password $db < $sql
+		if [ $? -ne 0 ]
+		then
+			echo $sql failed!!!
+			sqlfail=true
+			exit
+		fi
+		if [ -n "$sqlfail" ]
+		then
+        		echo "FIX THE DB ERROR FIRST"
+			exit
+		fi
+	done
+done
+echo "Starting scripts"
+for siteaccess in `adminsites`
+do
+	php5 update/common/scripts/4.2/fixorphanimages.php -s $siteaccess
+done
+}
+
 ########
 #      #
 # MAIN #
@@ -282,6 +367,8 @@ case $1 in
 	6) upto400;;
 	7) upto401;;
 	8) upto403;;
+	9) upto410;;
+	10) upto420;;
 	*) cat <<EOF
 input needed:
 	1 upto352 you should be in the 3.6 directory
@@ -292,6 +379,8 @@ input needed:
 	6 upto400 you should be in the 4.0 directory
 	7 upto401 you should be in the 4.0 directory
 	8 upto403 you should be in the 4.0 directory
+	9 upto410 you should be in the 4.0 directory
+	10 upto420 you should be in the 4.0 directory
 EOF
 	   ;;
 esac
