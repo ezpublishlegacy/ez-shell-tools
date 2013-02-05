@@ -5,32 +5,50 @@
 dbversion ()
 {
 dbversion=`php -r "require 'autoload.php';
-echo eZPublishSDK::databaseVersion(false);"`
+\\$script = eZScript::instance( array( 'debug-message' => '', 'use-session' => true, 'use-modules' => true, 'use-extensions' => true ) );
+\\$script->startup();
+\\$script->setUseSiteAccess( '${1}' );
+\\$script->initialize();
+echo eZPublishSDK::databaseVersion(false);
+\\$script->shutdown();"`
 echo $dbversion
 }
 version ()
 {
 version=`php -r "require 'autoload.php';
-echo eZPublishSDK::version();"`
+\\$script = eZScript::instance( array( 'debug-message' => '', 'use-session' => true, 'use-modules' => true, 'use-extensions' => true ) );
+\\$script->startup();
+\\$script->setUseSiteAccess( '${1}' );
+\\$script->initialize();
+echo eZPublishSDK::version();
+\\$script->shutdown();"`
 echo $version
 }
 
 sites ()
 {
 sites=`php -r "require 'autoload.php';
+\\$script = eZScript::instance( array( 'debug-message' => '', 'use-session' => true, 'use-modules' => true, 'use-extensions' => true ) );
+\\$script->startup();
+\\$script->setUseSiteAccess( '${1}' );
+\\$script->initialize();
 \\$ini = eZINI::instance();
 \\$sitelist=\\$ini->variable( 'SiteSettings', 'SiteList' );
+\\$script->shutdown();
 foreach(\\$sitelist as \\$site) echo \\$site.' ';"`
 echo $sites
 }
 
 adminsites ()
 {
-for siteaccess in `sites`
+for siteaccess in `sites $1`
 do
 if [ `echo $siteaccess|grep -ic "admin"` -ne 0 ]
 then
-        echo $siteaccess
+	if [ "$siteaccess" = $1 ]
+	then
+        	echo $siteaccess
+	fi
 fi
 done
 }
@@ -53,30 +71,30 @@ echo $dbinfo;
 newtype ()
 {
 echo "Converting all tables to InnoDB"
-dbinfo `adminsites`|while read db user password
+dbinfo `adminsites $1`|while read db user password
 do
 	php bin/php/ezconvertmysqltabletype.php --host=localhost  --user=$user --database=$db --password=$password --newtype=InnoDB 2>/dev/null
 done
 }
-upto352 ()
+upto352 () #1
 {
 echo "Starting 3.5.2 upgrade"
-dbinfo `adminsites`|while read db user password
+dbinfo `adminsites $1`|while read db user password
 do
         mysql -u $user --password=$password $db < update/database/mysql/3.5/dbupdate-3.5.1-to-3.5.2.sql|egrep -v "Warning|Notice"
 done
 newtype
 }
-upto36 ()
+upto36 () #2
 {
 echo "Starting 3.6 upgrade"
-dbinfo `adminsites`|while read db user password
+dbinfo `adminsites $1`|while read db user password
 do
         mysql -f -u $user --password=$password $db < update/database/mysql/3.6/dbupdate-3.5.2-to-3.6.0.sql
 done
 newtype
 echo "Starting scripts"
-for siteaccess in `adminsites`
+for siteaccess in `adminsites $1`
 do
 	echo "Updating Top level"
 	php update/common/scripts/updatetoplevel.php -s $siteaccess
@@ -85,27 +103,27 @@ do
 	echo "Updating xmllinks"
 	php update/common/scripts/convertxmllinks.php -s $siteaccess
 done
-for siteaccess in `sites`
+for siteaccess in `sites $1`
 do #this has to be run on ALL site accesses
 	echo "Updating eztimetype"
 	php update/common/scripts/updateeztimetype.php -s $siteaccess
 done
-dbinfo `adminsites`|while read db user password
+dbinfo `adminsites $1`|while read db user password
 do
 	echo "Updating crc"
 	php update/common/scripts/updatecrc32.php $user:$password:$db:mysql
 done
 }
-upto38 ()
+upto38 () #3
 {
 echo "Starting 3.8 upgrade"
-dbinfo `adminsites`|while read db user password
+dbinfo `adminsites $1`|while read db user password
 do
         mysql -f -u $user --password=$password $db < update/database/mysql/3.8/dbupdate-3.6.0-to-3.8.0.sql
 done
 newtype
 echo "Starting scripts"
-for siteaccess in `adminsites`
+for siteaccess in `adminsites $1`
 do
 	echo "Updating multilingual"
         php update/common/scripts/updatemultilingual.php -s $siteaccess
@@ -113,10 +131,10 @@ do
 	php update/common/scripts/updaterssimport.php -s $siteaccess
 done
 }
-upto39 ()
+upto39 () #4
 {
 echo "Starting 3.9 upgrade"
-dbinfo `adminsites`|while read db user password
+dbinfo `adminsites $1`|while read db user password
 do
 	for sql in update/database/mysql/3.9/*.sql
 	do
@@ -138,7 +156,7 @@ fi
 echo "Done with DB conversions."
 newtype
 echo "Starting scripts"
-for siteaccess in `adminsites`
+for siteaccess in `adminsites $1`
 do
 	#This should be the main language for each site
 	echo "Updating class translations"
@@ -151,14 +169,14 @@ do
 	echo "Updating xmltext"
 	php update/common/scripts/3.9/correctxmltext.php -s $siteaccess
 	echo "Updating typerelation"
-	php update/common/scripts/3.9/updatetypedrelation.php -s $siteaccess	
+	php update/common/scripts/3.9/updatetypedrelation.php -s $siteaccess
 
 done
 }
-upto310 ()
+upto310 () #5
 {
 echo "Starting 3.10 upgrade"
-dbinfo `adminsites`|while read db user password
+dbinfo `adminsites $1`|while read db user password
 do
 	for sql in update/database/mysql/3.10/*.sql
 	do
@@ -180,7 +198,7 @@ fi
 echo "Done with DB conversions."
 newtype
 echo "Starting scripts"
-for siteaccess in `adminsites`
+for siteaccess in `adminsites $1`
 do
 	echo "Updating nice urls"
 	php bin/php/updateniceurls.php -s $siteaccess
@@ -196,10 +214,10 @@ do
 	php4 update/common/scripts/3.10/updatevatcountries.php -s $siteaccess
 done
 }
-upto400 ()
+upto400 () #6
 {
 echo "Starting 4.0 upgrade"
-dbinfo `adminsites`|while read db user password
+dbinfo `adminsites $1`|while read db user password
 do
 	for sql in update/database/mysql/4.0/*.sql
 	do
@@ -223,16 +241,16 @@ do
 done
 newtype
 echo "Starting scripts"
-for siteaccess in `adminsites`
+for siteaccess in `adminsites $1`
 do
 	echo "Updating binary files"
 	/usr/bin/php5 update/common/scripts/4.0/updatebinaryfile.php -s $siteaccess
 done
 }
-upto401 ()
+upto401 () #7
 {
 echo "Starting 4.0.1 upgrade"
-dbinfo `adminsites`|while read db user password
+dbinfo `adminsites $1`|while read db user password
 do
 #DOING URL ALIASES LATER
 	#echo "Adding ezurlalias_migration schema"
@@ -257,7 +275,7 @@ do
 done
 newtype
 echo "Starting scripts"
-for siteaccess in `adminsites`
+for siteaccess in `adminsites $1`
 do
 	echo "Updating binary files"
 	/usr/bin/php5 update/common/scripts/4.0/updatebinaryfile.php -s $siteaccess
@@ -279,10 +297,10 @@ do
 	/usr/bin/php5 update/common/scripts/4.0/updatevatcountries.php -s $siteaccess
 done
 }
-upto403 ()
+upto403 () #8
 {
 echo "Starting 4.0.3 upgrade"
-dbinfo `adminsites`|while read db user password
+dbinfo `adminsites $1`|while read db user password
 do
 	#mysql -f -u $user --password=$password $db < update/database/mysql/4.0/dbupdate-4.0.1-to-4.0.2.sql
 	#mysql -f -u $user --password=$password $db < update/database/mysql/4.0/dbupdate-4.0.2-to-4.0.3.sql
@@ -290,7 +308,7 @@ do
 done
 
 #THIS WILL BE DONE BELOW
-#for siteaccess in `adminsites`
+#for siteaccess in `adminsites $1`
 #do
 	#php5 extension/ezurlaliasmigration/scripts/migrate.php --create-migration-table -s $siteaccess
 	#php5 extension/ezurlaliasmigration/scripts/migrate.php --migrate -s $siteaccess
@@ -301,7 +319,7 @@ done
 #done
 newtype
 #echo "Starting scripts"
-#for siteaccess in `adminsites`
+#for siteaccess in `adminsites $1`
 #do
 	#php5 update/common/scripts/4.0/initurlaliasmlid.php -s $siteaccess
 	#echo "Updating nice urls"
@@ -309,10 +327,10 @@ newtype
         #php extension/ezurlaliasmigration/scripts/migrate.php --restore -s $siteaccess
 #done
 }
-upto410 ()
+upto410 () #9
 {
 echo "Starting 4.1.0 upgrade"
-dbinfo `adminsites`|while read db user password
+dbinfo `adminsites $1`|while read db user password
 do
 	for sql in update/database/mysql/4.1/*.sql
 	do
@@ -332,7 +350,7 @@ do
 	done
 done
 echo "Starting scripts"
-for siteaccess in `adminsites`
+for siteaccess in `adminsites $1`
 do
 	# addlockstategroup.php (used for creating locked states, part of the object states functionality)
 	# fixclassremoteid.php (fixing remote ids of classes)
@@ -349,8 +367,8 @@ do
 	php5 update/common/scripts/4.1/fixezurlobjectlinks.php -s $siteaccess
 	echo "Doing fixobjectremoteid.php"
 	php5 update/common/scripts/4.1/fixobjectremoteid.php -s $siteaccess
-	echo "Doing initurlaliasmlid.php"
-	php5 update/common/scripts/4.1/initurlaliasmlid.php -s $siteaccess
+	#echo "Doing initurlaliasmlid.php"
+	#php5 update/common/scripts/4.1/initurlaliasmlid.php -s $siteaccess
 	#echo "Doing updateimagesystem.php"
 	#Undocumented!!
 	#correctxmlalign.php
@@ -359,16 +377,16 @@ do
 	php5 update/common/scripts/4.1/fixnoderemoteid.php -s $siteaccess
 done
 }
-upto420 ()
+upto420 () #10
 {
 echo "Starting 4.2.0 upgrade"
 #If you are upgrading to the 4.2 series of eZ Publish for the first time, and the installation at hand has been running since prior to eZ Publish 3.3 then you need to run the updateimagesystem.php script before running any of the dbupdate scripts for version 4.2.
 #php5 update/common/scripts/4.1/updateimagesystem.php -s $siteaccess
 
 echo "Adding ezurlalias_migration schema"
-dbinfo `adminsites`|while read db user password
+dbinfo `adminsites $1`|while read db user password
 do
-	mysql -u $user --password=$password $db < extension/ezurlaliasmigration/sql/mysql/schema.sql
+	#mysql -u $user --password=$password $db < extension/ezurlaliasmigration/sql/mysql/schema.sql
 	for sql in update/database/mysql/4.2/*.sql
 	do
 		echo "running $sql"
@@ -387,22 +405,23 @@ do
 	done
 done
 echo "Starting scripts"
-for siteaccess in `adminsites`
+for siteaccess in `adminsites $1`
 do
 	php5 update/common/scripts/4.2/fixorphanimages.php -s $siteaccess
-	echo "migrating url aliases"
-	php5 extension/ezurlaliasmigration/scripts/migrate.php --migrate
-	#Shouldn't need this mysql -u $user --password=$password $db -e "UPDATE ezurlalias SET is_imported=0; TRUNCATE ezurlalias_ml;"
+	#echo "migrating url aliases"
+	#php5 extension/ezurlaliasmigration/scripts/migrate.php --migrate
+	##Shouldn't need this mysql -u $user --password=$password $db -e "UPDATE ezurlalias SET is_imported=0; TRUNCATE ezurlalias_ml;"
 	echo "Updating nice urls"
-        /usr/bin/php5 bin/php/updateniceurls.php --import --fetch-limit=100 -s $siteaccess
-        php extension/ezurlaliasmigration/scripts/migrate.php --restore
+        #/usr/bin/php5 bin/php/updateniceurls.php --import --fetch-limit=100 -s $siteaccess
+        /usr/bin/php5 bin/php/updateniceurls.php -s $siteaccess
+        #php extension/ezurlaliasmigration/scripts/migrate.php --restore
 done
 }
-upto430 ()
+upto430 () #11
 {
 echo "Starting 4.3.0 upgrade"
 
-dbinfo `adminsites`|while read db user password
+dbinfo `adminsites $1`|while read db user password
 do
 	for sql in update/database/mysql/4.3/dbupdate-4.2.0-to-4.3.0.sql
 	do
@@ -422,17 +441,17 @@ do
 	done
 done
 echo "Starting scripts"
-for siteaccess in `adminsites`
+for siteaccess in `adminsites $1`
 do
 	echo "Updating Node Assignments"
-	php5 update/common/scripts/4.3/updatenodeassignment.php  --allow-root-user
+	php5 update/common/scripts/4.3/updatenodeassignment.php  --allow-root-user -s $siteaccess
 done
 }
-upto440 ()
+upto440 () #12
 {
 echo "Starting 4.4.0 upgrade"
 
-dbinfo `adminsites`|while read db user password
+dbinfo `adminsites $1`|while read db user password
 do
 	for sql in update/database/mysql/4.4/*.sql
 	do
@@ -451,49 +470,193 @@ do
 		fi
 	done
 done
-echo "Starting scripts"
-for siteaccess in `adminsites`
+}
+upto450 () #13
+{
+echo "Starting 4.5.0 upgrade"
+
+dbinfo `adminsites $1`|while read db user password
 do
-	echo "Updating Node Assignments"
-	php5 update/common/scripts/4.4/updatesectionidentifier.php --allow-root-user
+	for sql in update/database/mysql/4.5/*.sql
+	do
+		echo "running $sql"
+        	mysql -f -u $user --password=$password $db < $sql
+		if [ $? -ne 0 ]
+		then
+			echo $sql failed!!!
+			sqlfail=true
+			exit
+		fi
+		if [ -n "$sqlfail" ]
+		then
+        		echo "FIX THE DB ERROR FIRST"
+			exit
+		fi
+	done
+done
+echo "Starting scripts"
+for siteaccess in `adminsites $1`
+do
+	echo "Updating Section Identifier"
+	php update/common/scripts/4.5/updatesectionidentifier.php --allow-root-user -s $siteaccess
 done
 }
+upto2011_5 () #14
+{
+echo "Starting 2011.5 upgrade"
 
+dbinfo `adminsites $1`|while read db user password
+do
+	mysql -u $user --password=$password $db -e "CREATE TABLE ezorder_nr_incr ( id int(11) NOT NULL AUTO_INCREMENT, PRIMARY KEY  (id) ) ENGINE=InnoDB;"
+done
+echo "No scripts"
+
+}
+upto2011_9 () #15
+{
+echo "Starting 2011.9 upgrade"
+
+dbinfo `adminsites $1`|while read db user password
+do
+	mysql -u $user --password=$password $db -e "UPDATE ezworkflow_event SET data_text5 = data_text3, data_text3 = '' WHERE workflow_type_string = 'event_ezmultiplexer';"
+done
+echo "Starting scripts"
+for siteaccess in `adminsites $1`
+do
+	echo "Removing trashed images"
+	php update/common/scripts/4.6/removetrashedimages.php --allow-root-user -s $siteaccess
+	echo "Updating order number"
+	php update/common/scripts/4.6/updateordernumber.php --allow-root-user -s $siteaccess
+done
+}
+upto2012_2 () #16
+{
+echo "Starting 2012.2 upgrade"
+
+dbinfo `adminsites $1`|while read db user password
+do
+	mysql -u $user --password=$password $db -e "ALTER TABLE ezpending_actions ADD COLUMN id int(11) AUTO_INCREMENT PRIMARY KEY;"
+	mysql -u $user --password=$password $db -e "DELETE FROM ezuser_accountkey WHERE user_id IN ( SELECT user_id FROM ezuser_setting WHERE is_enabled = 1 );"
+done
+echo "No scripts"
+}
+upto2012_3 () #17
+{
+echo "Starting 2012.3 upgrade"
+
+dbinfo `adminsites $1`|while read db user password
+do
+	mysql -u $user --password=$password $db -e "SET storage_engine=InnoDB;
+UPDATE ezsite_data SET value='4.7.0beta1' WHERE name='ezpublish-version';
+UPDATE ezsite_data SET value='1' WHERE name='ezpublish-release';
+ALTER TABLE ezcontentobject_attribute MODIFY COLUMN data_float double DEFAULT NULL;
+ALTER TABLE ezcontentclass_attribute MODIFY COLUMN data_float1 double DEFAULT NULL;
+ALTER TABLE ezcontentclass_attribute MODIFY COLUMN data_float2 double DEFAULT NULL;
+ALTER TABLE ezcontentclass_attribute MODIFY COLUMN data_float3 double DEFAULT NULL;
+ALTER TABLE ezcontentclass_attribute MODIFY COLUMN data_float4 double DEFAULT NULL;"
+done
+echo "No scripts"
+}
+upto2012_4 () #18
+{
+echo "Starting 2012.4 upgrade"
+
+dbinfo `adminsites $1`|while read db user password
+do
+	mysql -u $user --password=$password $db -e "SET storage_engine=InnoDB;
+UPDATE ezsite_data SET value='4.7.0rc1' WHERE name='ezpublish-version';
+UPDATE ezsite_data SET value='1' WHERE name='ezpublish-release';
+UPDATE eztrigger SET name = 'pre_updatemainassignment', function_name = 'updatemainassignment' WHERE name = 'pre_UpdateMainAssignment' AND function_name = 'UpdateMainAssignment';"
+#Only for cluster machines
+#ALTER TABLE `ezdfsfile` CHANGE `datatype` `datatype` VARCHAR(255); ALTER TABLE `ezdbfile` CHANGE `datatype` `datatype` VARCHAR(255);"
+done
+echo "No scripts"
+}
+upto2012_6 () #19
+{
+echo "Starting 2012.6 upgrade"
+
+dbinfo `adminsites $1`|while read db user password
+do
+	mysql -u $user --password=$password $db -e "SET storage_engine=InnoDB;
+UPDATE ezsite_data SET value='5.0.0alpha1' WHERE name='ezpublish-version';
+UPDATE ezsite_data SET value='1' WHERE name='ezpublish-release';
+ALTER TABLE ezcobj_state_group_language ADD COLUMN real_language_id int(11) NOT NULL DEFAULT 0;
+UPDATE ezcobj_state_group_language SET real_language_id = language_id & ~1;
+-- ALTER TABLE ezcobj_state_group_language DROP PRIMARY KEY, ADD PRIMARY KEY(contentobject_state_group_id, real_language_id);"
+done
+echo "Starting scripts"
+for siteaccess in `adminsites $1`
+do
+	echo "Removing duplicate content state group language"
+	php update/common/scripts/5.0/deduplicatecontentstategrouplanguage.php --allow-root-user -s $siteaccess
+done
+}
+check ()
+{
+echo in check
+echo `adminsites $1`
+dbinfo `adminsites $1`|while read db user password
+do
+	echo $db $user $password
+done
+}
 ########
 #      #
 # MAIN #
 #      #
 ########
-dbinfo `adminsites`
-echo Database Version: `dbversion`
-echo File System Version: `version`
+siteAccess=$1
+if [ $# -gt 1 ]
+then
+	shift
+fi
+dbinfo `adminsites $siteAccess`
+echo Database Version: `dbversion $siteAccess`
+echo File System Version: `version $siteAccess`
 case $1 in
-	1) upto352;;
-	2) upto36;;
-	3) upto38;;
-	4) upto39;;
-	5) upto310;;
-	6) upto400;;
-	7) upto401;;
-	8) upto403;;
-	9) upto410;;
-	10) upto420;;
-	11) upto430;;
-	12) upto440;;
+	0)  check   $siteAccess;;
+	1)  upto352 $siteAccess;;
+	2)  upto36  $siteAccess;;
+	3)  upto38  $siteAccess;;
+	4)  upto39  $siteAccess;;
+	5)  upto310 $siteAccess;;
+	6)  upto400 $siteAccess;;
+	7)  upto401 $siteAccess;;
+	8)  upto403 $siteAccess;;
+	9)  upto410 $siteAccess;;
+	10) upto420 $siteAccess;;
+	11) upto430 $siteAccess;;
+	12) upto440 $siteAccess;;
+	13) upto450 $siteAccess;;
+	14) upto2011_5 $siteAccess;;
+	15) upto2011_9 $siteAccess;;
+	16) upto2012_2 $siteAccess;;
+	17) upto2012_3 $siteAccess;;
+	18) upto2012_4 $siteAccess;;
+	19) upto2012_6 $siteAccess;;
 	*) cat <<EOF
 input needed:
-	1 upto352 you should be in the 3.6 directory
-	2 upto36 you should be in the 3.6 directory
-	3 upto38 you should be in the 3.8 directory
-	4 upto39 you should be in the 3.9 directory
-	5 upto310 you should be in the 3.10 directory
-	6 upto400 you should be in the 4.0 directory
-	7 upto401 you should be in the 4.0 directory
-	8 upto403 you should be in the 4.0 directory
-	9 upto410 you should be in the 4.0 directory
-	10 upto420 you should be in the 4.0 directory
+	0  check $siteAccess
+	1  upto352 you should be in the 3.6 directory
+	2  upto36  you should be in the 3.6 directory
+	3  upto38  you should be in the 3.8 directory
+	4  upto39  you should be in the 3.9 directory
+	5  upto310 you should be in the 3.10 directory
+	6  upto400 you should be in the 4.0 directory
+	7  upto401 you should be in the 4.x directory
+	8  upto403 you should be in the 4.x directory
+	9  upto410 you should be in the 4.x directory
+	10 upto420 you should be in the 4.x directory
 	11 upto430 you should be in the 4.3 directory
 	12 upto440 you should be in the 4.4 directory
+	13 upto450 you should be in the 4.5 directory
+	14 upto2011.5 you should be in the 4.5 directory
+	15 upto2011.9 you should be in the 4.6 directory
+	16 upto2012.2 you should be in the 4.6 directory
+	17 upto2012.3 you should be in the 4.6 directory
+	18 upto2012.4 you should be in the 4.6 directory
+	19 upto2012.6 you should be in the 2012.6 directory
 EOF
 	   ;;
 esac
