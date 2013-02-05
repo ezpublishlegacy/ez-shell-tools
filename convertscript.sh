@@ -1,17 +1,20 @@
 #!/bin/sh
+#Copyright 2007-2012 Leidentech All rights reserved.
+#license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License v2
+
 sites ()
 {
 	echo "en fr"
 }
 adminsites ()
 {
-	echo "admin"
+	echo "admin admin2"
 }
 dbinfo ()
 {
-#database database_user database_password
 cat <<-EOF
 <database> <user> <password>
+<database2> <user2> <password2>
 EOF
 }
 newtype ()
@@ -195,7 +198,7 @@ done
 }
 upto401 ()
 {
-echo "Starting 4.0 upgrade"
+echo "Starting 4.0.1 upgrade"
 dbinfo|while read db user password
 do
 	for sql in update/database/mysql/4.0/*.sql
@@ -215,23 +218,19 @@ do
 		fi
 	done
 	echo "Removing 3.10 nicely updated urls"
-	#mysql -u $user --password=$password $db -e "UPDATE ezurlalias SET is_imported=0; TRUNCATE ezurlalias_ml;"
 	echo "Done with DB conversions."
 done
 newtype
 echo "Starting scripts"
 for siteaccess in `adminsites`
 do
-	php update/common/scripts/4.0/fixobjectremoteid.php -s $siteaccess
+	echo "Fixing object remote id"
+	/usr/bin/php5 update/common/scripts/4.0/fixobjectremoteid.php -s $siteaccess
 	echo "Updating binary files"
 	/usr/bin/php5 update/common/scripts/4.0/updatebinaryfile.php -s $siteaccess
-php5 extension/ezurlaliasmigration/scripts/migrate.php --create-migration-table
-php5 extension/ezurlaliasmigration/scripts/migrate.php --migrate
-	echo "Truncating db"
-dbinfo|while read db user password
-do
-	mysql -u $user --password=$password $db -e "UPDATE ezurlalias SET is_imported=0; TRUNCATE ezurlalias_ml;"
-done
+#php5 extension/ezurlaliasmigration/scripts/migrate.php --create-migration-table
+#php5 extension/ezurlaliasmigration/scripts/migrate.php --migrate
+#mysql -u $user --password=$password $db -e "UPDATE ezurlalias SET is_imported=0; TRUNCATE ezurlalias_ml;"
 	echo "Updating nice urls"
         /usr/bin/php5 bin/php/updateniceurls.php --import --fetch-limit=100 -s $siteaccess
         php extension/ezurlaliasmigration/scripts/migrate.php --restore
@@ -239,6 +238,34 @@ done
 	/usr/bin/php5 update/common/scripts/4.0/updatetipafriendpolicy.php -s $siteaccess -l admin -p $password
 	#echo "Updating vatcountries" Doesn't exist, but documented ?!?
 	#/usr/bin/php5 update/common/scripts/4.0/updatevatcountries.php -s $siteaccess
+done
+}
+upto403 ()
+{
+echo "Starting 4.0.3 upgrade"
+dbinfo|while read db user password
+do
+	#mysql -f -u $user --password=$password $db < update/database/mysql/4.0/dbupdate-4.0.1-to-4.0.2.sql
+	#mysql -f -u $user --password=$password $db < update/database/mysql/4.0/dbupdate-4.0.2-to-4.0.3.sql
+        continue
+done
+for siteaccess in `adminsites`
+do
+	php5 extension/ezurlaliasmigration/scripts/migrate.php --create-migration-table -s $siteaccess
+	php5 extension/ezurlaliasmigration/scripts/migrate.php --migrate -s $siteaccess
+done
+dbinfo|while read db user password
+do
+	mysql -u $user --password=$password $db -e "UPDATE ezurlalias SET is_imported=0; TRUNCATE ezurlalias_ml;"
+done
+newtype
+echo "Starting scripts"
+for siteaccess in `adminsites`
+do
+	#php5 update/common/scripts/4.0/initurlaliasmlid.php -s $siteaccess
+	echo "Updating nice urls"
+        /usr/bin/php5 bin/php/updateniceurls.php --import --fetch-limit=100 -s $siteaccess
+        php extension/ezurlaliasmigration/scripts/migrate.php --restore -s $siteaccess
 done
 }
 ########
@@ -254,6 +281,7 @@ case $1 in
 	5) upto310;;
 	6) upto400;;
 	7) upto401;;
+	8) upto403;;
 	*) cat <<EOF
 input needed:
 	1 upto352 you should be in the 3.6 directory
@@ -263,6 +291,7 @@ input needed:
 	5 upto310 you should be in the 3.10 directory
 	6 upto400 you should be in the 4.0 directory
 	7 upto401 you should be in the 4.0 directory
+	8 upto403 you should be in the 4.0 directory
 EOF
 	   ;;
 esac
