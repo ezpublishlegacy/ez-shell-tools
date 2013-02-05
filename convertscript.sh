@@ -592,6 +592,31 @@ do
 	php update/common/scripts/5.0/deduplicatecontentstategrouplanguage.php --allow-root-user -s $siteaccess
 done
 }
+upto2012_8 () #20
+{
+echo "Starting 2012.8 upgrade"
+echo "Starting scripts"
+for siteaccess in `adminsites $1`
+do
+	echo "Restoring xml relations"
+	php update/common/scripts/5.0/restorexmlrelations.php -s $siteaccess
+done
+}
+upto2012_9 () #21
+{
+echo "Starting 2012.9 upgrade"
+
+dbinfo `adminsites $1`|while read db user password
+do
+	mysql -u $user --password=$password $db -e "ALTER TABLE ezuser ADD INDEX ezuser_login (login); DELETE FROM ezcontentobject_link WHERE relation_type = 8 AND contentclassattribute_id = 0; UPDATE ezcontentobject_link SET relation_type = 2 WHERE relation_type = 10 AND contentclassattribute_id = 0;"
+done
+echo "Starting scripts"
+for siteaccess in `adminsites $1`
+do
+	echo "Removing duplicate content state group language"
+	php update/common/scripts/5.0/disablesuspicioususers.php -s --allow-root-user -s $siteaccess
+done
+}
 check ()
 {
 echo in check
@@ -635,6 +660,8 @@ case $1 in
 	17) upto2012_3 $siteAccess;;
 	18) upto2012_4 $siteAccess;;
 	19) upto2012_6 $siteAccess;;
+	20) upto2012_8 $siteAccess;;
+	21) upto2012_9 $siteAccess;;
 	*) cat <<EOF
 input needed:
 	0  check $siteAccess
@@ -657,6 +684,9 @@ input needed:
 	17 upto2012.3 you should be in the 4.6 directory
 	18 upto2012.4 you should be in the 4.6 directory
 	19 upto2012.6 you should be in the 2012.6 directory
+	#there was no 2012.7
+	20 upto2012.8 you should be in the 2012.8 directory
+	21 upto2012.9 you should be in the 2012.9 directory
 EOF
 	   ;;
 esac
