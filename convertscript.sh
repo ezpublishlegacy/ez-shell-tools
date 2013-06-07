@@ -617,6 +617,78 @@ do
 	php update/common/scripts/5.0/disablesuspicioususers.php -s --allow-root-user -s $siteaccess
 done
 }
+
+upto2012_11 () #22
+{
+echo "Starting 2012.11 upgrade"
+
+dbinfo `adminsites $1`|while read db user password
+do
+	mysql -u $user --password=$password $db -e "SET storage_engine=InnoDB;ALTER TABLE eznode_assignment CHANGE remote_id remote_id VARCHAR(100);UPDATE ezsite_data SET value='5.1.0alpha1' WHERE name='ezpublish-version';UPDATE ezsite_data SET value='1' WHERE name='ezpublish-release';"
+done
+echo "No scripts"
+}
+upto2013_1 () #23
+{
+echo "Starting 2013.1 upgrade"
+dbinfo `adminsites $1`|while read db user password
+do
+cat <<-EOF|mysql -u $user --password=$password $db
+ALTER TABLE ezcontentclass ADD INDEX ezcontentclass_identifier (identifier, version);
+ALTER TABLE ezcontentobject_tree ADD INDEX ezcontentobject_tree_remote_id (remote_id);
+ALTER TABLE ezcontentobject_version ADD INDEX ezcontobj_version_obj_status (contentobject_id, STATUS);
+ALTER TABLE ezpolicy ADD INDEX ezpolicy_role_id (role_id);
+ALTER TABLE ezpolicy_limitation_value ADD INDEX ezpolicy_limit_value_limit_id (limitation_id);
+ALTER TABLE ezcontentobject_attribute
+    DROP INDEX ezcontentobject_attribute_contentobject_id,
+    DROP INDEX ezcontentobject_attr_id;
+ALTER TABLE ezcontentobject_name DROP INDEX ezcontentobject_name_co_id;
+ALTER TABLE ezenumobjectvalue DROP INDEX ezenumobjectvalue_co_attr_id_co_attr_ver;
+ALTER TABLE ezkeyword DROP INDEX ezkeyword_keyword_id;
+ALTER TABLE ezkeyword_attribute_link DROP INDEX ezkeyword_attr_link_keyword_id;
+ALTER TABLE eznode_assignment DROP INDEX eznode_assignment_co_id;
+ALTER TABLE ezprest_clients DROP INDEX client_id;
+
+ALTER TABLE ezurlalias_ml
+    DROP INDEX ezurlalias_ml_actt,
+-- Combining "ezurlalias_ml_par_txt" and "ezurlalias_ml_par_lnk_txt" by moving "link" after "text(32)" in the latter:
+    DROP INDEX ezurlalias_ml_par_txt,
+    DROP INDEX ezurlalias_ml_par_lnk_txt,
+    ADD INDEX ezurlalias_ml_par_lnk_txt (parent, text(32), link),
+
+-- Combining "ezurlalias_ml_action" and "ezurlalias_ml_par_act_id_lnk" by moving "parent" after "link" in the latter:
+    DROP INDEX ezurlalias_ml_action,
+    DROP INDEX ezurlalias_ml_par_act_id_lnk,
+    ADD INDEX ezurlalias_ml_par_act_id_lnk (action(32), id, link, parent);
+
+-- See https://jira.ez.no/browse/EZP-20239
+DELETE FROM ezcontentobject_link WHERE op_code <> 0;
+DELETE FROM ezcontentobject_link WHERE relation_type = 0;
+ALTER TABLE ezcontentobject_link DROP COLUMN op_code;
+EOF
+done
+echo "No scripts"
+}
+upto2013_4 () #24
+{
+echo "Starting 2013.4 upgrade"
+
+dbinfo `adminsites $1`|while read db user password
+do
+	mysql -u $user --password=$password $db -e "UPDATE ezcobj_state_group_language SET real_language_id = language_id & ~1;"
+done
+echo "No scripts"
+}
+upto2013_5 () #25
+{
+echo "Starting 2013.5 upgrade"
+
+dbinfo `adminsites $1`|while read db user password
+do
+	mysql -u $user --password=$password $db -e "ALTER TABLE eznode_assignment CHANGE COLUMN remote_id remote_id varchar(100) NOT NULL DEFAULT '0';"
+done
+echo "No scripts"
+}
 check ()
 {
 echo in check
@@ -662,31 +734,39 @@ case $1 in
 	19) upto2012_6 $siteAccess;;
 	20) upto2012_8 $siteAccess;;
 	21) upto2012_9 $siteAccess;;
+	22) upto2012_11 $siteAccess;;
+	23) upto2013_1 $siteAccess;;
+	24) upto2013_4 $siteAccess;;
+	25) upto2013_5 $siteAccess;;
 	*) cat <<EOF
 input needed:
 	0  check $siteAccess
-	1  upto352 you should be in the 3.6 directory
-	2  upto36  you should be in the 3.6 directory
-	3  upto38  you should be in the 3.8 directory
-	4  upto39  you should be in the 3.9 directory
-	5  upto310 you should be in the 3.10 directory
-	6  upto400 you should be in the 4.0 directory
-	7  upto401 you should be in the 4.x directory
-	8  upto403 you should be in the 4.x directory
-	9  upto410 you should be in the 4.x directory
-	10 upto420 you should be in the 4.x directory
-	11 upto430 you should be in the 4.3 directory
-	12 upto440 you should be in the 4.4 directory
-	13 upto450 you should be in the 4.5 directory
-	14 upto2011.5 you should be in the 4.5 directory
-	15 upto2011.9 you should be in the 4.6 directory
-	16 upto2012.2 you should be in the 4.6 directory
-	17 upto2012.3 you should be in the 4.6 directory
-	18 upto2012.4 you should be in the 4.6 directory
-	19 upto2012.6 you should be in the 2012.6 directory
-	#there was no 2012.7
-	20 upto2012.8 you should be in the 2012.8 directory
-	21 upto2012.9 you should be in the 2012.9 directory
+	1  upto352 you should be in the 3.6 (or greater) directory
+	2  upto36  you should be in the 3.6 (or greater) directory
+	3  upto38  you should be in the 3.8 (or greater) directory
+	4  upto39  you should be in the 3.9 (or greater) directory
+	5  upto310 you should be in the 3.10 (or greater) directory
+	6  upto400 you should be in the 4.0 (or greater) directory
+	7  upto401 you should be in the 4.x (or greater) directory
+	8  upto403 you should be in the 4.x (or greater) directory
+	9  upto410 you should be in the 4.x (or greater) directory
+	10 upto420 you should be in the 4.x (or greater) directory
+	11 upto430 you should be in the 4.3 (or greater) directory
+	12 upto440 you should be in the 4.4 (or greater) directory
+	13 upto450 you should be in the 4.5 (or greater) directory
+	14 upto2011.5 you should be in the 4.5 (or greater) directory
+	15 upto2011.9 you should be in the 4.6 (or greater) directory
+	16 upto2012.2 you should be in the 4.6 (or greater) directory
+	17 upto2012.3 you should be in the 4.6 (or greater) directory
+	18 upto2012.4 you should be in the 4.6 (or greater) directory
+	19 upto2012.6 you should be in the 2012.6 (or greater) directory
+	20 upto2012.8 you should be in the 2012.8 (or greater) directory
+	21 upto2012.9 you should be in the 2012.9 (or greater) directory
+	22 upto2012.11 you should be in the 2012.11 (or greater) directory
+	23 upto2013.1 you should be in the 2013.1 (or greater) directory
+	24 upto2013.4 you should be in the 2013.4 (or greater) directory
+	25 upto2013.5 you should be in the 2013.5 (or greater) directory
+Missing releases had no database/script changes
 EOF
 	   ;;
 esac
