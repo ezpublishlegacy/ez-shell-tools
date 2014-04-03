@@ -698,6 +698,170 @@ do
 	echo $db $user $password
 done
 }
+upto2013_5 () #25
+{
+echo "Starting 2013.5 upgrade"
+
+dbinfo `adminsites $1`|while read db user password
+do
+	mysql -u $user --password=$password $db -e "ALTER TABLE eznode_assignment CHANGE COLUMN remote_id remote_id varchar(100) NOT NULL DEFAULT '0';"
+done
+echo "No scripts"
+}
+check ()
+{
+echo in check
+echo `adminsites $1`
+dbinfo `adminsites $1`|while read db user password
+do
+	echo $db $user $password
+done
+}
+upto2013_9 () #26
+{
+echo "Starting 2013.9 upgrade"
+dbinfo `adminsites $1`|while read db user password
+do
+cat <<-EOF|mysql -u $user --password=$password $db
+ALTER TABLE ezcontent_language
+    MODIFY id BIGINT NOT NULL DEFAULT '0';
+ 
+ALTER TABLE ezcontentclass
+    MODIFY initial_language_id BIGINT NOT NULL DEFAULT '0',
+    MODIFY language_mask BIGINT NOT NULL DEFAULT '0';
+ 
+ALTER TABLE ezcontentclass_name
+    MODIFY language_id BIGINT NOT NULL DEFAULT '0';
+ 
+ALTER TABLE ezcontentobject
+    MODIFY initial_language_id BIGINT NOT NULL DEFAULT '0',
+    MODIFY language_mask BIGINT NOT NULL DEFAULT '0';
+ 
+ALTER TABLE ezcontentobject_name
+    MODIFY language_id BIGINT NOT NULL DEFAULT '0';
+ 
+ALTER TABLE ezcontentobject_attribute
+    MODIFY language_id BIGINT NOT NULL DEFAULT '0';
+ 
+ALTER TABLE ezcontentobject_version
+    MODIFY initial_language_id BIGINT NOT NULL DEFAULT '0',
+    MODIFY language_mask BIGINT NOT NULL DEFAULT '0';
+ 
+ALTER TABLE ezcobj_state
+    MODIFY default_language_id BIGINT NOT NULL DEFAULT '0',
+    MODIFY language_mask BIGINT NOT NULL DEFAULT '0';
+ 
+ALTER TABLE ezcobj_state_group
+    MODIFY default_language_id BIGINT NOT NULL DEFAULT '0',
+    MODIFY language_mask BIGINT NOT NULL DEFAULT '0';
+ 
+ALTER TABLE ezcobj_state_group_language
+    MODIFY language_id BIGINT NOT NULL DEFAULT '0',
+    MODIFY real_language_id BIGINT NOT NULL DEFAULT '0';
+ 
+ALTER TABLE ezcobj_state_language
+    MODIFY language_id BIGINT NOT NULL DEFAULT '0';
+ 
+ALTER TABLE ezurlalias_ml
+    MODIFY lang_mask BIGINT NOT NULL DEFAULT '0';
+ 
+-- Start ezp-21465 : Cleanup extra lines in the ezurl_object_link table
+DROP TEMPORARY TABLE IF EXISTS ezurl_object_link_temp ;
+ 
+-- create a temporary table containing stale links
+CREATE TEMPORARY TABLE ezurl_object_link_temp
+SELECT DISTINCT contentobject_attribute_id, contentobject_attribute_version, url_id
+FROM ezurl_object_link AS T1 JOIN ezcontentobject_attribute ON T1.contentobject_attribute_id = ezcontentobject_attribute.id
+WHERE ezcontentobject_attribute.data_type_string = "ezurl"
+AND T1.url_id < ANY
+  (SELECT DISTINCT T2.url_id
+  FROM ezurl_object_link T2
+  WHERE T1.url_id < T2.url_id
+  AND T1.contentobject_attribute_id = T2.contentobject_attribute_id
+  AND T1.contentobject_attribute_version = T2.contentobject_attribute_version);
+ 
+SET @OLD_SQL_SAFE_UPDATES=@@SQL_SAFE_UPDATES;
+SET SQL_SAFE_UPDATES=0;
+ 
+DELETE ezurl_object_link.*
+FROM ezurl_object_link JOIN ezurl_object_link_temp ON ezurl_object_link.url_id = ezurl_object_link_temp.url_id
+AND ezurl_object_link.contentobject_attribute_id = ezurl_object_link_temp.contentobject_attribute_id
+AND ezurl_object_link.contentobject_attribute_version = ezurl_object_link_temp.contentobject_attribute_version;
+ 
+SET SQL_SAFE_UPDATES=@OLD_SQL_SAFE_UPDATES;
+-- End ezp-21465
+ 
+-- Start EZP-21469
+-- While using the public API, ezcontentobject.language_mask was not updated correctly,
+-- the UPDATE statement below fixes that based on the language_mask of the current version.
+UPDATE
+    ezcontentobject AS o
+INNER JOIN
+    ezcontentobject_version AS v ON o.id = v.contentobject_id AND o.current_version = v.version
+SET
+    o.language_mask = (o.language_mask & 1) | (v.language_mask & ~1);
+-- End EZP-21469
+ 
+-- Start EZP-21648:
+-- Adding 'priority' and 'is_hidden' columns to the 'eznode_assignment' table
+ALTER TABLE eznode_assignment ADD COLUMN priority int(11) NOT NULL DEFAULT '0';
+ALTER TABLE eznode_assignment ADD COLUMN is_hidden int(11) NOT NULL DEFAULT '0';
+-- End EZP-21648
+
+-- IF DFS CLUSTER ADD THESE LINES TOO
+-- CREATE TABLE ezdfsfile_cache (
+--   name text NOT NULL,
+--   name_trunk text NOT NULL,
+--   name_hash varchar(34) NOT NULL DEFAULT '',
+--   datatype varchar(255) NOT NULL DEFAULT 'application/octet-stream',
+--   scope varchar(25) NOT NULL DEFAULT '',
+--   size bigint(20) UNSIGNED NOT NULL DEFAULT '0',
+--   mtime int(11) NOT NULL DEFAULT '0',
+--   expired tinyint(1) NOT NULL DEFAULT '0',
+--   PRIMARY KEY (name_hash),
+--   KEY ezdfsfile_name (name(250)),
+--   KEY ezdfsfile_name_trunk (name_trunk(250)),
+--   KEY ezdfsfile_mtime (mtime),
+--   KEY ezdfsfile_expired_name (expired,name(250))
+-- ) ENGINE=InnoDB;
+EOF
+done
+echo "No scripts"
+}
+
+upto2013_11 () #27
+{
+echo "Starting 2013.11 upgrade"
+dbinfo `adminsites $1`|while read db user password
+do
+cat <<-EOF|mysql -u $user --password=$password $db
+DROP INDEX ezimagefile_co_attr_id_filepath ON ezimagefile;
+-- The following was already done in the previous upgrade
+-- Start EZP-21648:
+-- Adding 'priority' and 'is_hidden' columns to the 'eznode_assignment' table
+-- ALTER TABLE eznode_assignment ADD COLUMN priority int(11) NOT NULL DEFAULT '0';
+-- ALTER TABLE eznode_assignment ADD COLUMN is_hidden int(11) NOT NULL DEFAULT '0';
+-- End EZP-21648
+SET storage_engine=InnoDB;
+UPDATE ezsite_data SET value='5.3.0alpha1' WHERE name='ezpublish-version';
+ 
+ALTER TABLE ezcontentobject_attribute
+    ADD KEY ezcontentobject_classattr_id (contentclassattribute_id);
+EOF
+done
+echo "No scripts"
+}
+
+check ()
+{
+echo in check
+echo `adminsites $1`
+dbinfo `adminsites $1`|while read db user password
+do
+	echo $db $user $password
+done
+}
+
 ########
 #      #
 # MAIN #
@@ -738,6 +902,8 @@ case $1 in
 	23) upto2013_1 $siteAccess;;
 	24) upto2013_4 $siteAccess;;
 	25) upto2013_5 $siteAccess;;
+	26) upto2013_9 $siteAccess;;
+	27) upto2013_11 $siteAccess;;
 	*) cat <<EOF
 input needed:
 	0  check $siteAccess
@@ -766,6 +932,8 @@ input needed:
 	23 upto2013.1 you should be in the 2013.1 (or greater) directory
 	24 upto2013.4 you should be in the 2013.4 (or greater) directory
 	25 upto2013.5 you should be in the 2013.5 (or greater) directory
+	26 upto2013.9 you should be in the 2013.9 (or greater) directory
+	27 upto2013.11 you should be in the 2013.11 (or greater) directory
 Missing releases had no database/script changes
 EOF
 	   ;;
