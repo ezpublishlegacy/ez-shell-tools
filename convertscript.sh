@@ -9,9 +9,7 @@ dbversion=`php -r "require 'autoload.php';
 \\$script->startup();
 \\$script->setUseSiteAccess( '${1}' );
 \\$script->initialize();
-//echo eZPublishSDK::databaseVersion(false);
-\\$dbversionArray=eZSetupFunctionCollection::fetchFullVersionString();
-echo \\$dbversionArray['result'];
+echo eZPublishSDK::databaseVersion(false);
 \\$script->shutdown();"`
 echo $dbversion
 }
