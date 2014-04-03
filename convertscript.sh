@@ -1,5 +1,5 @@
 #!/bin/sh
-#Copyright 2007-2012 Leidentech All rights reserved.
+#Copyright 2007-2014 Leidentech All rights reserved.
 #license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License v2
 
 dbversion ()
@@ -9,7 +9,9 @@ dbversion=`php -r "require 'autoload.php';
 \\$script->startup();
 \\$script->setUseSiteAccess( '${1}' );
 \\$script->initialize();
-echo eZPublishSDK::databaseVersion(false);
+//echo eZPublishSDK::databaseVersion(false);
+\\$dbversionArray=eZSetupFunctionCollection::fetchFullVersionString();
+echo \\$dbversionArray['result'];
 \\$script->shutdown();"`
 echo $dbversion
 }
