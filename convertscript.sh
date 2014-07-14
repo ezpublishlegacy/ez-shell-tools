@@ -1,5 +1,5 @@
 #!/bin/sh
-#Copyright 2007-2014 Leidentech All rights reserved.
+#Copyright 2007-2012 Leidentech All rights reserved.
 #license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License v2
 
 dbversion ()
