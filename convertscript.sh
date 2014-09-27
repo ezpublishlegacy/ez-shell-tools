@@ -1,5 +1,5 @@
 #!/bin/sh
-#Copyright 2007-2012 Leidentech All rights reserved.
+#Copyright 2007-2014 Leidentech All rights reserved.
 #license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License v2
 
 dbversion ()
@@ -41,15 +41,21 @@ echo $sites
 
 adminsites ()
 {
+#Admin site has to be listed in the ini SiteList - if there is a siteaccess variable that matches
+#that siteaccess will be used. otherwise the first siteaccess with admin in the name will be used.
+
 for siteaccess in `sites $1`
 do
-if [ `echo $siteaccess|grep -ic "admin"` -ne 0 ]
-then
-	if [ "$siteaccess" = $1 ]
+	if [ "$siteaccess" = "$1" ]
 	then
-        	echo $siteaccess
+       		echo $siteaccess
+		break
 	fi
-fi
+	if [ `echo $siteaccess|grep -ic "admin"` -ne 0 ]
+	then
+		echo $siteaccess
+		break
+	fi
 done
 }
 
@@ -851,6 +857,53 @@ EOF
 done
 echo "No scripts"
 }
+upto2014_3 () #28
+{
+echo "Starting 2014.3 upgrade"
+
+echo "No db changes"
+for siteaccess in `adminsites $1`
+do
+        echo "Recreating image references"
+	php update/common/scripts/5.3/recreateimagesreferences.php -s $siteaccess
+        echo "Updating parent remote ids"
+	php update/common/scripts/5.3/updatenodeassignmentparentremoteids.php -s $siteaccess
+done
+
+}
+upto2014_7 () #29
+{
+echo "Starting 2014.7 upgrade"
+dbinfo `adminsites $1`|while read db user password
+do
+cat <<-EOF|mysql -u $user --password=$password $db
+SET storage_engine=InnoDB;
+UPDATE ezsite_data SET value='5.4.0alpha1' WHERE name='ezpublish-version';
+ 
+DROP TABLE ezsearch_return_count;
+ 
+UPDATE ezcontentobject_attribute
+    SET data_int = NULL
+WHERE
+    data_int = 0
+    AND data_type_string IN ( 'ezdate', 'ezdatetime' );
+ 
+UPDATE ezinfocollection_attribute, ezcontentclass_attribute
+    SET ezinfocollection_attribute.data_int = NULL
+WHERE
+    ezcontentclass_attribute.id = ezinfocollection_attribute.contentclass_attribute_id
+    AND ezinfocollection_attribute.data_int = 0
+    AND ezcontentclass_attribute.data_type_string IN ( 'ezdate', 'ezdatetime' );
+EOF
+done
+for siteaccess in `adminsites $1`
+do
+        echo "Recreating image references"
+	php update/common/scripts/5.3/recreateimagesreferences.php -s $siteaccess
+        echo "Updating parent remote ids"
+	php update/common/scripts/5.3/updatenodeassignmentparentremoteids.php -s $siteaccess
+done
+}
 
 check ()
 {
@@ -872,9 +925,14 @@ if [ $# -gt 1 ]
 then
 	shift
 fi
-dbinfo `adminsites $siteAccess`
+#dbinfo `adminsites $siteAccess`
 echo Database Version: `dbversion $siteAccess`
 echo File System Version: `version $siteAccess`
+echo Admin sites:
+echo `adminsites $siteAccess`
+echo Siteaccess:
+echo `sites`"\n"
+
 case $1 in
 	0)  check   $siteAccess;;
 	1)  upto352 $siteAccess;;
@@ -904,7 +962,10 @@ case $1 in
 	25) upto2013_5 $siteAccess;;
 	26) upto2013_9 $siteAccess;;
 	27) upto2013_11 $siteAccess;;
-	*) cat <<EOF
+	28) upto2014_3 $siteAccess;;
+	28) upto2014_7 $siteAccess;;
+	*) echo `basename $0` "[<siteaccess>] <step>"
+cat <<EOF
 input needed:
 	0  check $siteAccess
 	1  upto352 you should be in the 3.6 (or greater) directory
@@ -934,6 +995,8 @@ input needed:
 	25 upto2013.5 you should be in the 2013.5 (or greater) directory
 	26 upto2013.9 you should be in the 2013.9 (or greater) directory
 	27 upto2013.11 you should be in the 2013.11 (or greater) directory
+	28 upto2014.3 you should be in the 2014.03 (or greater) directory
+	29 upto2014.7 you should be in the 2014.07 (or greater) directory
 Missing releases had no database/script changes
 EOF
 	   ;;
