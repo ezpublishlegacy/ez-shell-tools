@@ -1,6 +1,10 @@
-# compares directories using diff - ignores .svn dirs and white space changes
+#!/bin/bash
+#Copyright 2014 Leidentech All rights reserved.
+#license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License v2
 
-#cmd=`basename $0`
+# compares directories using diff - ignores .svn/.git dirs and white space changes
+
+cmd=`basename $0`
 
 printerr ()
 {
@@ -65,7 +69,6 @@ do
                         echo $dir1file $dir2file ARE NOT THE SAME.
 if [ "$listflag" != "TRUE" ]
 then
-                        #diff --suppress-common-lines -b --ignore-matching-lines="^//" "$dir1file" "$dir2file"
                         diff --suppress-common-lines -b --ignore-matching-lines="^[ 	]\{0,\}//" --ignore-matching-lines="^[ 	]\{0,\}\* @" --ignore-matching-lines="^[ 	]\{0,\}/\*\*" "$dir1file" "$dir2file"
 fi
 		else
@@ -76,23 +79,6 @@ fi
                 fi
         fi
 done
-#compare 2 1
-#Handled above
-#if [ "$allflag" = "TRUE" -o "$misstwoflag" = "TRUE" -o "$missingflag" = "TRUE" ]
-#then
-#find "$dir1" ! -wholename "*/\.svn/*" ! -wholename "*/\.git/*" -type f|while read dir1file
-#do
-        #dir2file=${dir2}${dir1file##$dir1}
-	##diff was done above just have to check if it exists
-        #if [ ! -f "$dir2file" ]
-        #then
-		##if [ "$allflag" = "TRUE" ]
-		##then
-                	#echo "$dir1file DOES NOT EXIST IN SECOND DIRECTORY"
-		##fi
-        #fi
-#done
-#fi
 if [ "$allflag" = "TRUE" -o "$missoneflag" = "TRUE" -o "$missingflag" = "TRUE" ]
 then
 find "$dir2" ! -wholename "*/\.svn/*" ! -wholename "*/\.git/*" -type f|while read dir2file
